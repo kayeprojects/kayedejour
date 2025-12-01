@@ -15,7 +15,7 @@ interface NoteImage {
 }
 
 interface Note {
-  id: number
+  id: string
   title: string
   content: string
   date: string
@@ -27,7 +27,7 @@ interface EditorProps {
   isOpen: boolean
   onClose: () => void
   onSave: (note: Note) => void
-  onDelete: (id: number) => void
+  onDelete: (id: string) => void
 }
 
 export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps) {
@@ -73,7 +73,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
   const handleSave = () => {
     if (!editor) return
     onSave({
-      id: note?.id || 0,
+      id: note?.id || '',
       title,
       content: editor.getHTML(),
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),

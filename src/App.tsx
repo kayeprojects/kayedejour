@@ -1,12 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { supabase } from "./lib/supabase";
 import { Sidebar } from "./components/Sidebar";
 import { NoteGrid } from "./components/NoteGrid";
-import { Editor } from "./components/Editor";
+// import { Editor } from "./components/Editor"; // Lazy loaded below
 import type { Session } from "@supabase/supabase-js";
-import { LogIn, Moon, Sun } from "lucide-react";
+import { LogIn, Moon, Sun, RefreshCw } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import Lenis from "lenis";
+import { db } from "./lib/db";
+import { useLiveQuery } from "dexie-react-hooks";
+import { v4 as uuidv4 } from "uuid";
+import { syncNotes, syncFolders } from "./lib/sync";
+
+const Editor = lazy(() => import("./components/Editor").then(module => ({ default: module.Editor })));
 
 interface NoteImage {
   thumb: string
@@ -15,7 +21,7 @@ interface NoteImage {
 }
 
 interface Note {
-  id: number;
+  id: string;
   title: string;
   content: string;
   date: string;
@@ -24,20 +30,43 @@ interface Note {
   images?: NoteImage[];
 }
 
-interface Folder {
-  id: number;
-  name: string;
-}
+
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [activeFolder, setActiveFolder] = useState("All Notes");
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Live Queries from Dexie
+  const notes = useLiveQuery(async () => {
+    const dbNotes = await db.notes
+      .where("is_deleted")
+      .equals(0)
+      .reverse()
+      .sortBy("updated_at");
+      
+    return dbNotes.map((n) => ({
+      id: n.id,
+      title: n.title,
+      content: n.content,
+      date: new Date(n.created_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      folder: n.folder,
+      user_id: n.user_id,
+      images: n.images,
+    }));
+  }, []) || [];
+
+  const folders = useLiveQuery(async () => {
+    return await db.folders.where("is_deleted").equals(0).toArray();
+  }, []) || [];
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -55,32 +84,64 @@ function App() {
 
   useEffect(() => {
     if (session?.user) {
-      fetchNotes();
-      fetchFolders();
-
-      // Realtime subscription for Notes
-      const channel = supabase
-        .channel('notes-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'notes',
-            filter: `user_id=eq.${session.user.id}`
-          },
-          (payload) => {
-            console.log('Realtime update:', payload)
-            fetchNotes() // Refresh notes on any change
-          }
-        )
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
+      // Initial Migration Check
+      checkAndMigrateData();
     }
   }, [session]);
+
+  async function checkAndMigrateData() {
+    if (!session?.user) return;
+    const count = await db.notes.count();
+    if (count === 0) {
+      setIsLoading(true);
+      console.log("Migrating data from Supabase...");
+      
+      // Fetch Notes
+      const { data: notesData } = await supabase
+        .from("notes")
+        .select("*")
+        .eq("user_id", session.user.id);
+
+      if (notesData) {
+        await db.notes.bulkPut(
+          notesData.map((n) => ({
+            id: n.id.toString(), // Ensure string ID
+            title: n.title || "Untitled",
+            content: n.content || "",
+            folder: n.folder || "All Notes",
+            user_id: n.user_id,
+            images: n.images || [],
+            created_at: n.created_at,
+            updated_at: n.created_at, // Use created_at if updated_at is missing
+            is_dirty: 0,
+            is_deleted: 0,
+          }))
+        );
+      }
+
+      // Fetch Folders
+      const { data: foldersData } = await supabase
+        .from("folders")
+        .select("*")
+        .eq("user_id", session.user.id);
+
+      if (foldersData) {
+        await db.folders.bulkPut(
+          foldersData.map((f) => ({
+            id: f.id.toString(),
+            name: f.name,
+            user_id: f.user_id,
+            created_at: f.created_at,
+            is_dirty: 0,
+            is_deleted: 0,
+          }))
+        );
+      }
+      setIsLoading(false);
+    } else {
+      setIsLoading(false);
+    }
+  }
 
   // Dark Mode Effect
   useEffect(() => {
@@ -91,55 +152,23 @@ function App() {
     }
   }, [isDarkMode]);
 
-  async function fetchFolders() {
+
+
+  const handleSync = async () => {
     if (!session?.user) return;
+    setIsSyncing(true);
     try {
-      const { data, error } = await supabase
-        .from("folders")
-        .select("*")
-        .order("name");
-
-      if (error) throw error;
-      if (data) setFolders(data);
+      await Promise.all([
+        syncNotes(session.user.id),
+        syncFolders(session.user.id)
+      ]);
     } catch (error) {
-      console.error("Error fetching folders:", error);
-    }
-  }
-
-  async function fetchNotes() {
-    if (!session?.user) return;
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from("notes")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      if (data) {
-        setNotes(
-          data.map((n) => ({
-            id: n.id,
-            title: n.title || "Untitled",
-            content: n.content || "",
-            date: new Date(n.created_at).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            }),
-            folder: n.folder || "All Notes",
-            user_id: n.user_id,
-            images: n.images || []
-          }))
-        );
-      }
-    } catch (error) {
-      console.error("Error fetching notes:", error);
+      console.error("Sync error:", error);
+      alert("Sync failed");
     } finally {
-      setIsLoading(false);
+      setIsSyncing(false);
     }
-  }
+  };
 
   const handleLogin = async () => {
     await supabase.auth.signInWithOAuth({
@@ -149,8 +178,12 @@ function App() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setNotes([]);
-    setFolders([]);
+    // Optional: Clear local DB on logout? 
+    // For now, let's keep it. Or maybe clear it to avoid showing other user's data if they login on same device?
+    // Ideally we filter by user_id in queries, which we do.
+    // But for privacy, maybe clear?
+    // Let's just reload page to clear memory state.
+    window.location.reload();
   };
 
   const handleNewNote = () => {
@@ -167,30 +200,31 @@ function App() {
     if (!session?.user) return;
 
     try {
+      const now = new Date().toISOString();
       const noteToSave = {
         title: noteData.title,
         content: noteData.content,
         folder: activeFolder === "All Notes" ? "Unsorted" : activeFolder,
         user_id: session.user.id,
-        images: noteData.images
+        images: noteData.images || [],
+        updated_at: now,
+        is_dirty: 1,
+        is_deleted: 0
       };
 
-      if (noteData.id && noteData.id !== 0) {
+      if (noteData.id && noteData.id !== '') {
         // Update existing
-        const { error } = await supabase
-          .from("notes")
-          .update(noteToSave)
-          .eq("id", noteData.id);
-
-        if (error) throw error;
+        await db.notes.update(noteData.id, noteToSave);
       } else {
         // Create new
-        const { error } = await supabase.from("notes").insert([noteToSave]);
-
-        if (error) throw error;
+        const newId = uuidv4();
+        await db.notes.add({
+          ...noteToSave,
+          id: newId,
+          created_at: now,
+        });
       }
 
-      await fetchNotes();
       setIsEditorOpen(false);
     } catch (error) {
       console.error("Error saving note:", error);
@@ -198,14 +232,11 @@ function App() {
     }
   };
 
-  const handleDeleteNote = async (id: number) => {
+  const handleDeleteNote = async (id: string) => {
     if (!confirm("Are you sure you want to delete this note?")) return;
 
     try {
-      const { error } = await supabase.from("notes").delete().eq("id", id);
-
-      if (error) throw error;
-      await fetchNotes();
+      await db.notes.update(id, { is_deleted: 1, is_dirty: 1 });
       setIsEditorOpen(false);
     } catch (error) {
       console.error("Error deleting note:", error);
@@ -216,25 +247,25 @@ function App() {
   const handleCreateFolder = async (name: string) => {
     if (!session?.user) return;
     try {
-      const { error } = await supabase
-        .from("folders")
-        .insert([{ name, user_id: session.user.id }]);
-
-      if (error) throw error;
-      await fetchFolders();
+      const newId = uuidv4();
+      await db.folders.add({
+        id: newId,
+        name,
+        user_id: session.user.id,
+        created_at: new Date().toISOString(),
+        is_dirty: 1,
+        is_deleted: 0
+      });
     } catch (error) {
       console.error("Error creating folder:", error);
       alert("Failed to create folder");
     }
   };
 
-  const handleDeleteFolder = async (id: number) => {
+  const handleDeleteFolder = async (id: string) => {
     if (!confirm("Are you sure you want to delete this folder?")) return;
     try {
-      const { error } = await supabase.from("folders").delete().eq("id", id);
-
-      if (error) throw error;
-      await fetchFolders();
+      await db.folders.update(id, { is_deleted: 1, is_dirty: 1 });
       if (activeFolder !== "All Notes") setActiveFolder("All Notes");
     } catch (error) {
       console.error("Error deleting folder:", error);
@@ -321,6 +352,14 @@ function App() {
           </motion.h2>
           <div className="flex items-center gap-4">
             <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              className={`p-2 rounded-full text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${isSyncing ? 'animate-spin' : ''}`}
+              title="Sync Now"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+            <button
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-500 dark:text-gray-400 transition-colors"
             >
@@ -354,13 +393,15 @@ function App() {
 
       <AnimatePresence>
         {isEditorOpen && (
-          <Editor
-            isOpen={isEditorOpen}
-            note={editingNote}
-            onClose={() => setIsEditorOpen(false)}
-            onSave={handleSaveNote}
-            onDelete={handleDeleteNote}
-          />
+          <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-sm">Loading Editor...</div>}>
+            <Editor
+              isOpen={isEditorOpen}
+              note={editingNote}
+              onClose={() => setIsEditorOpen(false)}
+              onSave={handleSaveNote}
+              onDelete={handleDeleteNote}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
     </div>

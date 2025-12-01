@@ -6,7 +6,7 @@ import { Button } from './ui/button'
 import { cn } from '../lib/utils'
 
 interface FolderType {
-  id: number
+  id: string
   name: string
 }
 
@@ -15,7 +15,7 @@ interface SidebarProps {
   setActiveFolder: (folder: string) => void
   folders: FolderType[]
   onCreateFolder: (name: string) => void
-  onDeleteFolder: (id: number) => void
+  onDeleteFolder: (id: string) => void
   user: User
   onLogout: () => void
 }
