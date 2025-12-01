@@ -65,13 +65,13 @@ function App() {
   }, []) || [];
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       setSession(session);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
       setSession(session);
     });
 
@@ -100,7 +100,7 @@ function App() {
 
       if (notesData) {
         await db.notes.bulkPut(
-          notesData.map((n) => ({
+          notesData.map((n: any) => ({
             id: n.id.toString(), // Ensure string ID
             title: n.title || "Untitled",
             content: n.content || "",
@@ -123,7 +123,7 @@ function App() {
 
       if (foldersData) {
         await db.folders.bulkPut(
-          foldersData.map((f) => ({
+          foldersData.map((f: any) => ({
             id: f.id.toString(),
             name: f.name,
             user_id: f.user_id,
