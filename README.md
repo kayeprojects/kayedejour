@@ -2,6 +2,8 @@
 
 A personal project designed for daily journaling and private use.
 
+Live Demo: [https://kayedejour.onrender.com](https://kayedejour.onrender.com)
+
 ## About
 
 This application was built as a personal project to store daily journals and for private usage. It provides a simple, secure way to document daily life and thoughts.
@@ -25,7 +27,7 @@ This application was built as a personal project to store daily journals and for
 1.  Clone the repository:
 
     ```bash
-    git clone https://github.com/yourusername/kayedejour.git
+    git clone https://github.com/kayeprojects/kayedejour.git
     ```
 
 2.  Install dependencies:
