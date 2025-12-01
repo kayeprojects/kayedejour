@@ -36,7 +36,13 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
       )}
       <div className="p-6 flex flex-col flex-1">
         <div className="flex items-start justify-between mb-4">
-          <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{note.date}</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+            {new Date(note.date).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </span>
         </div>
         <h3 className="text-lg font-serif font-medium text-gray-900 dark:text-gray-100 mb-3 line-clamp-2 group-hover:text-black dark:group-hover:text-white transition-colors">
           {note.title}

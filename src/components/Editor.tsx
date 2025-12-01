@@ -7,6 +7,7 @@ import { X, Save, Eye, Edit2, Trash2, Bold, Italic, List, ListOrdered, Quote, He
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 import { supabase } from '../lib/supabase'
+import SmartDateInput from './SmartDateInput'
 
 interface NoteImage {
   thumb: string
@@ -35,6 +36,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
   const [isPreview, setIsPreview] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [attachedImages, setAttachedImages] = useState<NoteImage[]>([])
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
 
   const editor = useEditor({
     extensions: [
@@ -61,10 +63,13 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
       setTitle(note.title)
       editor?.commands.setContent(note.content)
       setAttachedImages(note.images || [])
+      // Set date from note, or today if not present
+      setDate(note.date ? new Date(note.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
     } else {
       setTitle('')
       editor?.commands.setContent('')
       setAttachedImages([])
+      setDate(new Date().toISOString().split('T')[0])
     }
   }, [note, editor])
 
@@ -76,7 +81,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
       id: note?.id || '',
       title,
       content: editor.getHTML(),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date: date, // Pass selected date string (YYYY-MM-DD)
       images: attachedImages
     })
   }
@@ -175,15 +180,6 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
           // Insert Medium version into editor for display
           editor?.chain().focus().setImage({ src: mediumUrl }).run()
           
-          // TODO: We should ideally track these URLs to save them in the 'images' column
-          // For now, we rely on the editor content, but for the Grid View thumbnail requirement,
-          // we need to pass this data back up. 
-          // Let's attach it to the editor instance or state if possible, 
-          // or just rely on parsing the content later? 
-          // Better: The user wants "Grid pakai thumb". 
-          // So we MUST save the `thumbUrl` somewhere.
-          // I will update the onSave to include an `images` array.
-          
           // Store in a temporary state for this session
           setAttachedImages(prev => [...prev, { thumb: thumbUrl, medium: mediumUrl, large: largeUrl }])
 
@@ -211,6 +207,15 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
             className="bg-transparent text-xl font-serif font-bold text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700 focus:outline-none w-full mr-4"
           />
           <div className="flex items-center gap-2">
+            {/* Date Picker */}
+            <SmartDateInput
+              value={date}
+              onChange={setDate}
+              className="w-auto"
+            />
+
+            <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-2" />
+
             <Button
               variant="ghost"
               size="sm"

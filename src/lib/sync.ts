@@ -74,34 +74,39 @@ export async function syncNotes(userId: string) {
               user_id: sNote.user_id,
               images: sNote.images || [],
               created_at: sNote.created_at,
-              updated_at: sNote.created_at, // or updated_at column
+              updated_at: sNote.updated_at || sNote.created_at,
               is_dirty: 0,
               is_deleted: 0
             });
           } else if (localNote.is_dirty === 0) {
-             // Local is clean, so safe to overwrite with server version if server is newer?
-             // Or just overwrite always to be safe.
-             await db.notes.put({
-               ...localNote,
-               title: sNote.title || '',
-               content: sNote.content || '',
-               folder: sNote.folder || 'Unsorted',
-               images: sNote.images || [],
-               updated_at: sNote.created_at, // Use proper field
-               is_dirty: 0
-             });
+             // Only update if server has newer data
+             const serverTime = new Date(sNote.updated_at || sNote.created_at).getTime();
+             const localTime = new Date(localNote.updated_at).getTime();
+
+             if (serverTime > localTime) {
+               await db.notes.put({
+                 ...localNote,
+                 title: sNote.title || '',
+                 content: sNote.content || '',
+                 folder: sNote.folder || 'Unsorted',
+                 images: sNote.images || [],
+                 updated_at: sNote.updated_at || sNote.created_at,
+                 is_dirty: 0
+               });
+             }
           }
         }
       });
     }
 
   } catch (error) {
-    console.error("Sync failed:", error);
+    console.error("Sync failed details:", JSON.stringify(error, null, 2));
     throw error;
   }
 }
 
 export async function syncFolders(userId: string) {
+  try {
     // Similar logic for folders
     const dirtyFolders = await db.folders.where('is_dirty').equals(1).toArray();
     
@@ -110,23 +115,27 @@ export async function syncFolders(userId: string) {
     const toUpsert = dirtyFolders.filter(f => f.is_deleted === 0);
 
     if (toUpsert.length > 0) {
-        await supabase.from('folders').upsert(toUpsert.map(f => ({
+        const { error } = await supabase.from('folders').upsert(toUpsert.map(f => ({
             id: f.id,
             name: f.name,
             user_id: f.user_id,
             created_at: f.created_at
         })));
+        if (error) throw error;
     }
 
     if (toDelete.length > 0) {
-        await supabase.from('folders').delete().in('id', toDelete.map(f => f.id));
+        const { error } = await supabase.from('folders').delete().in('id', toDelete.map(f => f.id));
+        if (error) throw error;
         await db.folders.bulkDelete(toDelete.map(f => f.id));
     }
     
     await db.folders.bulkPut(toUpsert.map(f => ({ ...f, is_dirty: 0 })));
 
     // Pull
-    const { data: serverFolders } = await supabase.from('folders').select('*').eq('user_id', userId);
+    const { data: serverFolders, error } = await supabase.from('folders').select('*').eq('user_id', userId);
+    if (error) throw error;
+
     if (serverFolders) {
         await db.transaction('rw', db.folders, async () => {
             for (const sFolder of serverFolders) {
@@ -150,4 +159,8 @@ export async function syncFolders(userId: string) {
             }
         });
     }
+  } catch (error) {
+    console.error("Sync folders failed details:", JSON.stringify(error, null, 2));
+    throw error;
+  }
 }

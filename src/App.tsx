@@ -53,11 +53,7 @@ function App() {
       id: n.id,
       title: n.title,
       content: n.content,
-      date: new Date(n.created_at).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
+      date: n.created_at,
       folder: n.folder,
       user_id: n.user_id,
       images: n.images,
@@ -201,27 +197,34 @@ function App() {
 
     try {
       const now = new Date().toISOString();
+      // Use the date selected by user (noteData.date) or fallback to now
+      // Ensure we keep the time component if possible, or just default to T00:00:00 if it's just a date string
+      // Actually, noteData.date will be an ISO string from the Editor
+      const finalDate = noteData.date ? new Date(noteData.date).toISOString() : now;
+      
       const noteToSave = {
         title: noteData.title,
         content: noteData.content,
         folder: activeFolder === "All Notes" ? "Unsorted" : activeFolder,
         user_id: session.user.id,
         images: noteData.images || [],
-        updated_at: now,
+        updated_at: now, // Always update updated_at to now for sync
         is_dirty: 1,
         is_deleted: 0
       };
 
       if (noteData.id && noteData.id !== '') {
         // Update existing
-        await db.notes.update(noteData.id, noteToSave);
+        // If user changed the date, we should update created_at? 
+        // Yes, user wants to "backdate" the journal. So we update created_at.
+        await db.notes.update(noteData.id, { ...noteToSave, created_at: finalDate });
       } else {
         // Create new
         const newId = uuidv4();
         await db.notes.add({
           ...noteToSave,
           id: newId,
-          created_at: now,
+          created_at: finalDate,
         });
       }
 
