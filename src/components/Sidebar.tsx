@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from './ui/button'
 import { cn } from '../lib/utils'
+import logo from '../assets/logo.png'
 
 interface FolderType {
   id: string
@@ -16,11 +17,12 @@ interface SidebarProps {
   folders: FolderType[]
   onCreateFolder: (name: string) => void
   onDeleteFolder: (id: string) => void
-  user: User
+  user: User | null
+  onLogin: () => void
   onLogout: () => void
 }
 
-export function Sidebar({ activeFolder, setActiveFolder, folders, onCreateFolder, onDeleteFolder, user, onLogout }: SidebarProps) {
+export function Sidebar({ activeFolder, setActiveFolder, folders, onCreateFolder, onDeleteFolder, user, onLogin, onLogout }: SidebarProps) {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [isProfileOpen, setIsProfileOpen] = useState(false)
@@ -38,9 +40,12 @@ export function Sidebar({ activeFolder, setActiveFolder, folders, onCreateFolder
     <aside className="w-64 border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors duration-300 sticky top-0 h-screen shrink-0 z-20">
       {/* Title */}
       <div className="p-8">
-        <h1 className="text-2xl font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          kayedejour'
-        </h1>
+        <div className="flex items-center gap-3">
+          <img src={logo} alt="Logo" className="w-16 h-16 object-contain" />
+          <h1 className="text-2xl font-serif font-bold text-gray-900 dark:text-white">
+            kayedejour'
+          </h1>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -121,45 +126,57 @@ export function Sidebar({ activeFolder, setActiveFolder, folders, onCreateFolder
 
       {/* User Profile */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-800 relative">
-        <button
-          onClick={() => setIsProfileOpen(!isProfileOpen)}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-        >
-          {user.user_metadata.avatar_url ? (
-            <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-8 h-8 rounded-full" />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-              <UserIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-            </div>
-          )}
-          <div className="flex-1 text-left overflow-hidden">
-            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-              {user.user_metadata.full_name || user.email}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
-          </div>
-          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
-        </button>
-
-        <AnimatePresence>
-          {isProfileOpen && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1"
+        {user ? (
+          <>
+            <button
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
-              <Button
-                variant="ghost"
-                onClick={onLogout}
-                className="w-full justify-start gap-2 px-4 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-500"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign Out
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              {user.user_metadata.avatar_url ? (
+                <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-8 h-8 rounded-full" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                  <UserIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                </div>
+              )}
+              <div className="flex-1 text-left overflow-hidden">
+                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                  {user.user_metadata.full_name || user.email}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+              {isProfileOpen && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1"
+                >
+                  <Button
+                    variant="ghost"
+                    onClick={onLogout}
+                    className="w-full justify-start gap-2 px-4 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-500"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        ) : (
+          <Button
+            onClick={onLogin}
+            className="w-full justify-start gap-3 px-3 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 text-white dark:text-gray-900"
+          >
+            <UserIcon className="w-4 h-4" />
+            Sign In
+          </Button>
+        )}
       </div>
     </aside>
   )

@@ -4,7 +4,7 @@ import { Sidebar } from "./components/Sidebar";
 import { NoteGrid } from "./components/NoteGrid";
 // import { Editor } from "./components/Editor"; // Lazy loaded below
 import type { Session } from "@supabase/supabase-js";
-import { LogIn, Moon, Sun, RefreshCw } from "lucide-react";
+import { Moon, Sun, RefreshCw } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import Lenis from "lenis";
 import { db } from "./lib/db";
@@ -39,7 +39,7 @@ function App() {
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   // Live Queries from Dexie
   const notes = useLiveQuery(async () => {
@@ -80,14 +80,19 @@ function App() {
 
   useEffect(() => {
     if (session?.user) {
-      // Initial Migration Check
+      // User is logged in
       checkAndMigrateData();
+    } else {
+      // Guest mode: stop loading immediately
+      setIsLoading(false);
     }
   }, [session]);
 
   async function checkAndMigrateData() {
     if (!session?.user) return;
     const count = await db.notes.count();
+    
+    // If local DB is empty, try to migrate from Supabase (first login on this device)
     if (count === 0) {
       setIsLoading(true);
       console.log("Migrating data from Supabase...");
@@ -135,6 +140,10 @@ function App() {
       }
       setIsLoading(false);
     } else {
+      // Local DB has data (maybe guest notes). 
+      // We should trigger a sync to pull user's cloud notes and merge them.
+      console.log("Local data exists, syncing with cloud...");
+      handleSync();
       setIsLoading(false);
     }
   }
@@ -193,7 +202,7 @@ function App() {
   };
 
   const handleSaveNote = async (noteData: Note) => {
-    if (!session?.user) return;
+    // if (!session?.user) return; // Allow guest save
 
     try {
       const now = new Date().toISOString();
@@ -206,7 +215,7 @@ function App() {
         title: noteData.title,
         content: noteData.content,
         folder: activeFolder === "All Notes" ? "Unsorted" : activeFolder,
-        user_id: session.user.id,
+        user_id: session?.user?.id || "guest",
         images: noteData.images || [],
         updated_at: now, // Always update updated_at to now for sync
         is_dirty: 1,
@@ -248,13 +257,13 @@ function App() {
   };
 
   const handleCreateFolder = async (name: string) => {
-    if (!session?.user) return;
+    // if (!session?.user) return; // Allow guest folder creation
     try {
       const newId = uuidv4();
       await db.folders.add({
         id: newId,
         name,
-        user_id: session.user.id,
+        user_id: session?.user?.id || "guest",
         created_at: new Date().toISOString(),
         is_dirty: 1,
         is_deleted: 0
@@ -297,32 +306,32 @@ function App() {
     };
   }, []);
 
-  if (!session) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-center space-y-6 p-8 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 max-w-md w-full"
-        >
-          <h1 className="text-4xl font-serif font-bold text-gray-900 dark:text-white mb-2">
-            kayedejour'
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Sign in to access your digital sanctuary.
-          </p>
-          <button
-            onClick={handleLogin}
-            className="w-full flex items-center justify-center gap-3 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 text-white dark:text-gray-900 py-3 px-6 rounded-lg transition-all duration-200 font-medium"
-          >
-            <LogIn className="w-5 h-5" />
-            Continue with Google
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
+  // if (!session) {
+  //   return (
+  //     <div className="flex h-screen w-full items-center justify-center bg-gray-50 dark:bg-gray-950">
+  //       <motion.div
+  //         initial={{ opacity: 0, y: 20 }}
+  //         animate={{ opacity: 1, y: 0 }}
+  //         transition={{ duration: 0.5 }}
+  //         className="text-center space-y-6 p-8 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 max-w-md w-full"
+  //       >
+  //         <h1 className="text-4xl font-serif font-bold text-gray-900 dark:text-white mb-2">
+  //           kayedejour'
+  //         </h1>
+  //         <p className="text-gray-500 dark:text-gray-400">
+  //           Sign in to access your digital sanctuary.
+  //         </p>
+  //         <button
+  //           onClick={handleLogin}
+  //           className="w-full flex items-center justify-center gap-3 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 text-white dark:text-gray-900 py-3 px-6 rounded-lg transition-all duration-200 font-medium"
+  //         >
+  //           <LogIn className="w-5 h-5" />
+  //           Continue with Google
+  //         </button>
+  //       </motion.div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div
@@ -334,7 +343,8 @@ function App() {
         folders={folders}
         onCreateFolder={handleCreateFolder}
         onDeleteFolder={handleDeleteFolder}
-        user={session.user}
+        user={session?.user || null}
+        onLogin={handleLogin}
         onLogout={handleLogout}
       />
 
@@ -403,6 +413,7 @@ function App() {
               onClose={() => setIsEditorOpen(false)}
               onSave={handleSaveNote}
               onDelete={handleDeleteNote}
+              folders={folders}
             />
           </Suspense>
         )}

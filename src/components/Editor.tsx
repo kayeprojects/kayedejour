@@ -3,7 +3,7 @@ import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
-import { X, Save, Eye, Edit2, Trash2, Bold, Italic, List, ListOrdered, Quote, Heading2, ImageIcon } from 'lucide-react'
+import { X, Save, Eye, Edit2, Trash2, Bold, Italic, List, ListOrdered, Quote, Heading2, ImageIcon, Type, Folder as FolderIcon } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 import { supabase } from '../lib/supabase'
@@ -20,7 +20,13 @@ interface Note {
   title: string
   content: string
   date: string
+  folder?: string
   images?: NoteImage[]
+}
+
+interface Folder {
+  id: string
+  name: string
 }
 
 interface EditorProps {
@@ -29,10 +35,14 @@ interface EditorProps {
   onClose: () => void
   onSave: (note: Note) => void
   onDelete: (id: string) => void
+  folders: Folder[]
 }
 
-export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps) {
+export function Editor({ note, isOpen, onClose, onSave, onDelete, folders }: EditorProps) {
   const [title, setTitle] = useState('')
+  const [selectedFolder, setSelectedFolder] = useState('Unsorted')
+  const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false)
+  const [textSize, setTextSize] = useState<'small' | 'medium' | 'large'>('medium')
   const [isPreview, setIsPreview] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [attachedImages, setAttachedImages] = useState<NoteImage[]>([])
@@ -53,7 +63,12 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
     content: '',
     editorProps: {
       attributes: {
-        class: 'prose prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[300px] px-8 py-6',
+        class: cn(
+          'prose dark:prose-invert max-w-none focus:outline-none min-h-[300px] px-8 py-6',
+          textSize === 'small' && 'prose-sm',
+          textSize === 'medium' && 'prose-base',
+          textSize === 'large' && 'prose-lg'
+        ),
       },
     },
   })
@@ -63,15 +78,35 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
       setTitle(note.title)
       editor?.commands.setContent(note.content)
       setAttachedImages(note.images || [])
+      setSelectedFolder(note.folder || 'Unsorted')
       // Set date from note, or today if not present
       setDate(note.date ? new Date(note.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
     } else {
       setTitle('')
       editor?.commands.setContent('')
       setAttachedImages([])
+      setSelectedFolder('Unsorted')
       setDate(new Date().toISOString().split('T')[0])
     }
   }, [note, editor])
+
+  // Update editor class when textSize changes
+  useEffect(() => {
+    if (editor) {
+      editor.setOptions({
+        editorProps: {
+          attributes: {
+            class: cn(
+              'prose dark:prose-invert max-w-none focus:outline-none min-h-[300px] px-8 py-6',
+              textSize === 'small' && 'prose-sm',
+              textSize === 'medium' && 'prose-base',
+              textSize === 'large' && 'prose-lg'
+            ),
+          },
+        }
+      })
+    }
+  }, [textSize, editor])
 
   if (!isOpen) return null
 
@@ -82,6 +117,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
       title,
       content: editor.getHTML(),
       date: date, // Pass selected date string (YYYY-MM-DD)
+      folder: selectedFolder,
       images: attachedImages
     })
   }
@@ -213,6 +249,91 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
               onChange={setDate}
               className="w-auto"
             />
+
+            {/* Folder Picker */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsFolderPickerOpen(!isFolderPickerOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <FolderIcon className="w-4 h-4" />
+                <span className="max-w-[100px] truncate">{selectedFolder}</span>
+              </button>
+              
+              {isFolderPickerOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsFolderPickerOpen(false)} 
+                  />
+                  <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <button
+                      onClick={() => {
+                        setSelectedFolder('Unsorted')
+                        setIsFolderPickerOpen(false)
+                      }}
+                      className={cn(
+                        "w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700",
+                        selectedFolder === 'Unsorted' ? "text-gray-900 dark:text-white font-medium" : "text-gray-500 dark:text-gray-400"
+                      )}
+                    >
+                      Unsorted
+                    </button>
+                    {folders.map(folder => (
+                      <button
+                        key={folder.id}
+                        onClick={() => {
+                          setSelectedFolder(folder.name)
+                          setIsFolderPickerOpen(false)
+                        }}
+                        className={cn(
+                          "w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700",
+                          selectedFolder === folder.name ? "text-gray-900 dark:text-white font-medium" : "text-gray-500 dark:text-gray-400"
+                        )}
+                      >
+                        {folder.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-2" />
+
+            {/* Text Size Toggle */}
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setTextSize('small')}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  textSize === 'small' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                )}
+                title="Small Text"
+              >
+                <Type className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => setTextSize('medium')}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  textSize === 'medium' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                )}
+                title="Medium Text"
+              >
+                <Type className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setTextSize('large')}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  textSize === 'large' ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                )}
+                title="Large Text"
+              >
+                <Type className="w-5 h-5" />
+              </button>
+            </div>
 
             <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-2" />
 
@@ -356,7 +477,12 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete }: EditorProps)
 
           {isPreview ? (
             <div 
-              className="flex-1 p-8 overflow-y-auto prose prose-lg dark:prose-invert max-w-none"
+              className={cn(
+                "flex-1 p-8 overflow-y-auto prose dark:prose-invert max-w-none",
+                textSize === 'small' && 'prose-sm',
+                textSize === 'medium' && 'prose-base',
+                textSize === 'large' && 'prose-lg'
+              )}
               dangerouslySetInnerHTML={{ __html: editor?.getHTML() || '' }}
               data-lenis-prevent
             />
