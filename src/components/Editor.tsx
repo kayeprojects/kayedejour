@@ -36,9 +36,10 @@ interface EditorProps {
   onSave: (note: Note) => void
   onDelete: (id: string) => void
   folders: Folder[]
+  activeFolder?: string
 }
 
-export function Editor({ note, isOpen, onClose, onSave, onDelete, folders }: EditorProps) {
+export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activeFolder = 'Unsorted' }: EditorProps) {
   const [title, setTitle] = useState('')
   const [selectedFolder, setSelectedFolder] = useState('Unsorted')
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false)
@@ -82,13 +83,14 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders }: Edi
       // Set date from note, or today if not present
       setDate(note.date ? new Date(note.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
     } else {
+      // New note - use activeFolder (or 'Unsorted' if viewing 'All Notes')
       setTitle('')
       editor?.commands.setContent('')
       setAttachedImages([])
-      setSelectedFolder('Unsorted')
+      setSelectedFolder(activeFolder === 'All Notes' ? 'Unsorted' : activeFolder)
       setDate(new Date().toISOString().split('T')[0])
     }
-  }, [note, editor])
+  }, [note, editor, activeFolder])
 
   // Update editor class when textSize changes
   useEffect(() => {

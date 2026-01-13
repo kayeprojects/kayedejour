@@ -211,10 +211,22 @@ function App() {
       // Actually, noteData.date will be an ISO string from the Editor
       const finalDate = noteData.date ? new Date(noteData.date).toISOString() : now;
       
+      // Determine folder: 
+      // - For new notes: use activeFolder (or "Unsorted" if viewing All Notes)
+      // - For existing notes: preserve the original folder
+      let folder: string;
+      if (noteData.id && noteData.id !== '') {
+        // Editing existing note - preserve original folder
+        folder = noteData.folder || "Unsorted";
+      } else {
+        // New note - use current active folder
+        folder = activeFolder === "All Notes" ? "Unsorted" : activeFolder;
+      }
+
       const noteToSave = {
         title: noteData.title,
         content: noteData.content,
-        folder: activeFolder === "All Notes" ? "Unsorted" : activeFolder,
+        folder,
         user_id: session?.user?.id || "guest",
         images: noteData.images || [],
         updated_at: now, // Always update updated_at to now for sync
@@ -414,6 +426,7 @@ function App() {
               onSave={handleSaveNote}
               onDelete={handleDeleteNote}
               folders={folders}
+              activeFolder={activeFolder}
             />
           </Suspense>
         )}
