@@ -4,7 +4,7 @@ import { Sidebar } from "./components/Sidebar";
 import { NoteGrid } from "./components/NoteGrid";
 // import { Editor } from "./components/Editor"; // Lazy loaded below
 import type { Session } from "@supabase/supabase-js";
-import { Moon, Sun, RefreshCw } from "lucide-react";
+import { Moon, Sun, RefreshCw, Search, Check } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import Lenis from "lenis";
 import { db } from "./lib/db";
@@ -39,7 +39,14 @@ function App() {
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [pendingChangesCount, setPendingChangesCount] = useState(0);
+  // Load dark mode from localStorage, default to true
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved !== null ? saved === 'true' : true;
+  });
 
   // Live Queries from Dexie
   const notes = useLiveQuery(async () => {
@@ -148,16 +155,49 @@ function App() {
     }
   }
 
-  // Dark Mode Effect
+  // Dark Mode Effect - save to localStorage
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
+    localStorage.setItem('darkMode', String(isDarkMode));
   }, [isDarkMode]);
 
+  // Track pending changes (dirty notes count)
+  useEffect(() => {
+    const countDirty = async () => {
+      const count = await db.notes.where('is_dirty').equals(1).count();
+      setPendingChangesCount(count);
+    };
+    countDirty();
+    // Re-check periodically
+    const interval = setInterval(countDirty, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+N - New note
+      if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault();
+        handleNewNote();
+      }
+      // Escape - Close editor
+      if (e.key === 'Escape' && isEditorOpen) {
+        setIsEditorOpen(false);
+      }
+      // Ctrl+Shift+S - Sync
+      if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        handleSync();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isEditorOpen]);
 
   const handleSync = async () => {
     if (!session?.user) return;
@@ -167,6 +207,8 @@ function App() {
         syncNotes(session.user.id),
         syncFolders(session.user.id)
       ]);
+      setLastSyncTime(new Date());
+      setPendingChangesCount(0);
     } catch (error) {
       console.error("Sync error:", error);
       alert("Sync failed");
@@ -297,10 +339,18 @@ function App() {
     }
   };
 
-  const filteredNotes =
-    activeFolder === "All Notes"
-      ? notes
-      : notes.filter((n) => n.folder === activeFolder);
+  // Filter notes by folder and search query
+  const filteredNotes = notes.filter((n) => {
+    // Folder filter
+    const matchesFolder = activeFolder === "All Notes" || n.folder === activeFolder;
+    
+    // Search filter (case-insensitive)
+    const matchesSearch = searchQuery.trim() === "" || 
+      n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      n.content.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return matchesFolder && matchesSearch;
+  });
 
   // Lenis Smooth Scroll
   useEffect(() => {
@@ -375,12 +425,42 @@ function App() {
           >
             {activeFolder}
           </motion.h2>
+          
+          {/* Search Bar */}
+          <div className="flex-1 max-w-md mx-8">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search notes..."
+                className="w-full pl-10 pr-4 py-2 text-sm bg-gray-100 dark:bg-gray-800 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+
           <div className="flex items-center gap-4">
+            {/* Sync Status */}
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              {pendingChangesCount > 0 && (
+                <span className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded-full">
+                  {pendingChangesCount} pending
+                </span>
+              )}
+              {lastSyncTime && (
+                <span className="flex items-center gap-1">
+                  <Check className="w-3 h-3 text-green-500" />
+                  {lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </div>
+            
             <button
               onClick={handleSync}
               disabled={isSyncing}
               className={`p-2 rounded-full text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${isSyncing ? 'animate-spin' : ''}`}
-              title="Sync Now"
+              title="Sync Now (Ctrl+Shift+S)"
             >
               <RefreshCw className="w-5 h-5" />
             </button>

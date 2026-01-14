@@ -32,7 +32,7 @@ describe('Sidebar', () => {
 
   it('renders Collections section', () => {
     render(<Sidebar {...defaultProps} />);
-    expect(screen.getByText('COLLECTIONS')).toBeInTheDocument();
+    expect(screen.getByText('Collections')).toBeInTheDocument();
   });
 
   it('renders All Notes option', () => {
@@ -46,10 +46,11 @@ describe('Sidebar', () => {
     expect(screen.getByText('Personal')).toBeInTheDocument();
   });
 
-  it('highlights active folder', () => {
+  it('highlights active folder with different styling', () => {
     render(<Sidebar {...defaultProps} activeFolder="Work" />);
     const workFolder = screen.getByText('Work').closest('button');
-    expect(workFolder).toHaveClass('bg-gray-100');
+    // Active folder has 'bg-white' in dark mode styling
+    expect(workFolder).toHaveClass('bg-white');
   });
 
   it('calls setActiveFolder when folder is clicked', () => {

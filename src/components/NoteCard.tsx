@@ -30,6 +30,8 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
           <img 
             src={coverImage} 
             alt="Note cover" 
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         </div>
@@ -45,7 +47,7 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
           </span>
         </div>
         <h3 className="text-lg font-serif font-medium text-gray-900 dark:text-gray-100 mb-3 line-clamp-2 group-hover:text-black dark:group-hover:text-white transition-colors">
-          {note.title}
+          {note.title || 'Untitled'}
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-5 leading-relaxed font-light">
           {note.content.replace(/<[^>]+>/g, '')}
