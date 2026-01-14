@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -48,8 +48,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
   const [isUploading, setIsUploading] = useState(false)
   const [attachedImages, setAttachedImages] = useState<NoteImage[]>([])
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
 
   const editor = useEditor({
     extensions: [
@@ -112,53 +111,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
     }
   }, [textSize, editor])
 
-  // Debounced auto-save (saves 2 seconds after user stops typing)
-  const triggerAutoSave = useCallback(() => {
-    if (!editor || !isOpen) return
-    
-    // Clear previous timer
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current)
-    }
-    
-    setAutoSaveStatus('unsaved')
-    
-    // Set new timer
-    autoSaveTimerRef.current = setTimeout(() => {
-      setAutoSaveStatus('saving')
-      onSave({
-        id: note?.id || '',
-        title,
-        content: editor.getHTML(),
-        date,
-        folder: selectedFolder,
-        images: attachedImages
-      })
-      setAutoSaveStatus('saved')
-    }, 2000)
-  }, [editor, isOpen, note?.id, title, date, selectedFolder, attachedImages, onSave])
 
-  // Listen for content changes to trigger auto-save
-  useEffect(() => {
-    if (editor) {
-      const handleUpdate = () => triggerAutoSave()
-      editor.on('update', handleUpdate)
-      return () => {
-        editor.off('update', handleUpdate)
-        // Clear timer on unmount
-        if (autoSaveTimerRef.current) {
-          clearTimeout(autoSaveTimerRef.current)
-        }
-      }
-    }
-  }, [editor, triggerAutoSave])
-
-  // Also trigger auto-save on title change
-  useEffect(() => {
-    if (isOpen && title !== (note?.title || '')) {
-      triggerAutoSave()
-    }
-  }, [title, isOpen, note?.title, triggerAutoSave])
 
   if (!isOpen) return null
 
@@ -420,15 +373,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
               </Button>
             )}
 
-            {/* Auto-save status */}
-            <span className={cn(
-              "text-xs transition-opacity",
-              autoSaveStatus === 'saved' ? "text-green-500 opacity-50" : "text-gray-400"
-            )}>
-              {autoSaveStatus === 'saving' && 'Saving...'}
-              {autoSaveStatus === 'saved' && 'Saved'}
-              {autoSaveStatus === 'unsaved' && '•'}
-            </span>
+
 
             <Button
               onClick={handleSave}
