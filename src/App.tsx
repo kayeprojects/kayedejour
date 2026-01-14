@@ -224,12 +224,11 @@ function App() {
   };
 
   const handleLogout = async () => {
+    // Clear local database to prevent notes from previous user being visible
+    await db.notes.clear();
+    await db.folders.clear();
+    
     await supabase.auth.signOut();
-    // Optional: Clear local DB on logout? 
-    // For now, let's keep it. Or maybe clear it to avoid showing other user's data if they login on same device?
-    // Ideally we filter by user_id in queries, which we do.
-    // But for privacy, maybe clear?
-    // Let's just reload page to clear memory state.
     window.location.reload();
   };
 
