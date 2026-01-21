@@ -33,7 +33,6 @@ export function NoteGrid({ notes, onNoteClick, onNewNote }: NoteGridProps) {
 
   return (
     <VirtuosoGrid
-      useWindowScroll
       totalCount={allItems.length}
       components={{
         List: GridContainer,

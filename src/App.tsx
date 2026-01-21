@@ -428,12 +428,12 @@ function App() {
       />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col relative bg-gray-50 dark:bg-black/50">
+      <main className="flex-1 flex flex-col relative bg-gray-50 dark:bg-black/50 overflow-hidden">
         {/* Background Image Overlay */}
         <div className="absolute inset-0 z-0 opacity-30 dark:opacity-20 pointer-events-none bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center" />
 
         {/* Header */}
-        <header className="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 sticky top-0">
+        <header className="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 shrink-0">
           {/* Main header row */}
           <div className="h-14 sm:h-16 flex items-center px-3 sm:px-4 lg:px-8 gap-2 sm:gap-3">
             {/* Mobile hamburger menu */}
@@ -562,7 +562,7 @@ function App() {
         </header>
 
         {/* Grid */}
-        <div className="flex-1 p-3 sm:p-4 lg:p-8 z-10" id="scroll-container">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8 z-10" id="scroll-container">
           {isLoading ? (
             <div className="flex items-center justify-center h-64 text-gray-400">
               Loading Journal...
