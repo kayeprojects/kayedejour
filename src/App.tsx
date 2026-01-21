@@ -366,21 +366,22 @@ function App() {
     return matchesFolder && matchesSearch;
   });
 
-  // Lenis Smooth Scroll
-  useEffect(() => {
-    const lenis = new Lenis();
+  // Lenis Smooth Scroll - DISABLED due to conflicts with sticky header
+  // Native browser scroll is smoother in modern browsers anyway
+  // useEffect(() => {
+  //   const lenis = new Lenis();
 
-    function raf(time: number) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
+  //   function raf(time: number) {
+  //     lenis.raf(time);
+  //     requestAnimationFrame(raf);
+  //   }
 
-    requestAnimationFrame(raf);
+  //   requestAnimationFrame(raf);
 
-    return () => {
-      lenis.destroy();
-    };
-  }, []);
+  //   return () => {
+  //     lenis.destroy();
+  //   };
+  // }, []);
 
   // if (!session) {
   //   return (
