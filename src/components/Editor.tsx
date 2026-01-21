@@ -52,7 +52,14 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        // Configure blockquote to be easier to exit
+        blockquote: {
+          HTMLAttributes: {
+            class: 'border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400',
+          },
+        },
+      }),
       Placeholder.configure({
         placeholder: 'Start writing your thoughts...',
       }),
@@ -71,6 +78,52 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
           textSize === 'medium' && 'prose-base',
           textSize === 'large' && 'prose-lg'
         ),
+      },
+      // Handle keyboard events for better blockquote exit
+      handleKeyDown: (view, event) => {
+        // Exit blockquote on Backspace at the start of an empty blockquote
+        if (event.key === 'Backspace') {
+          const { state } = view
+          const { selection } = state
+          const { $from } = selection
+          
+          // Check if we're in a blockquote
+          const blockquote = $from.node(-1)
+          if (blockquote?.type.name === 'blockquote') {
+            // Check if cursor is at the start and content is empty or just a paragraph
+            const parentOffset = $from.parentOffset
+            if (parentOffset === 0) {
+              const paragraph = $from.parent
+              if (paragraph.content.size === 0) {
+                // Exit blockquote
+                return false // Let TipTap handle it - it will lift the content out
+              }
+            }
+          }
+        }
+        
+        // Exit blockquote on double Enter (Enter on empty line)
+        if (event.key === 'Enter' && !event.shiftKey) {
+          const { state } = view
+          const { selection } = state
+          const { $from } = selection
+          
+          // Check if we're in a blockquote
+          for (let depth = $from.depth; depth > 0; depth--) {
+            const node = $from.node(depth)
+            if (node.type.name === 'blockquote') {
+              // Check if current paragraph is empty
+              const paragraph = $from.parent
+              if (paragraph.type.name === 'paragraph' && paragraph.content.size === 0) {
+                // Don't prevent default - let TipTap's built-in behavior handle exiting
+                return false
+              }
+              break
+            }
+          }
+        }
+        
+        return false
       },
     },
   })
@@ -96,18 +149,16 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
   // Update editor class when textSize changes
   useEffect(() => {
     if (editor) {
-      editor.setOptions({
-        editorProps: {
-          attributes: {
-            class: cn(
-              'prose dark:prose-invert max-w-none focus:outline-none min-h-[300px] px-8 py-6',
-              textSize === 'small' && 'prose-sm',
-              textSize === 'medium' && 'prose-base',
-              textSize === 'large' && 'prose-lg'
-            ),
-          },
-        }
-      })
+      // Note: we only update the attributes class, not overwriting other editorProps
+      const currentView = editor.view
+      if (currentView && currentView.dom) {
+        currentView.dom.className = cn(
+          'prose dark:prose-invert max-w-none focus:outline-none min-h-[300px] px-8 py-6',
+          textSize === 'small' && 'prose-sm',
+          textSize === 'medium' && 'prose-base',
+          textSize === 'large' && 'prose-lg'
+        )
+      }
     }
   }, [textSize, editor])
 
@@ -236,18 +287,55 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 dark:bg-black/50 backdrop-blur-sm p-4 sm:p-8 transition-colors duration-300 animate-in fade-in duration-200">
-      <div className="w-full max-w-4xl h-[85vh] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 dark:bg-black/50 backdrop-blur-sm p-0 sm:p-4 lg:p-8 transition-colors duration-300 animate-in fade-in duration-200">
+      <div className="w-full h-full sm:max-w-4xl sm:h-[90vh] lg:h-[85vh] bg-white dark:bg-gray-900 sm:border border-gray-200 dark:border-gray-800 sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="h-16 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between px-8 bg-white dark:bg-gray-900 shrink-0">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Untitled Entry"
-            className="bg-transparent text-xl font-serif font-bold text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700 focus:outline-none w-full mr-4"
-          />
-          <div className="flex items-center gap-2">
+        <div className="border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
+          {/* Main header row */}
+          <div className="h-14 sm:h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8">
+            {/* Close button (visible on mobile at left) */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 sm:hidden"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+            
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Untitled Entry"
+              className="bg-transparent text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700 focus:outline-none flex-1 min-w-0 mr-2 sm:mr-4"
+            />
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Button
+                onClick={handleSave}
+                className="gap-1 sm:gap-2 px-3 sm:px-4"
+                disabled={isUploading}
+              >
+                <Save className="w-4 h-4" />
+                <span className="hidden sm:inline">{isUploading ? 'Uploading...' : 'Save'}</span>
+              </Button>
+              
+              {/* Desktop close button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hidden sm:flex"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+          
+          {/* Secondary controls row */}
+          <div className="h-12 flex items-center gap-1 px-2 sm:px-4 lg:px-8 border-t border-gray-100 dark:border-gray-800 overflow-x-auto">
             {/* Date Picker */}
             <SmartDateInput
               value={date}
@@ -259,10 +347,10 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
             <div className="relative">
               <button 
                 onClick={() => setIsFolderPickerOpen(!isFolderPickerOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
                 <FolderIcon className="w-4 h-4" />
-                <span className="max-w-[100px] truncate">{selectedFolder}</span>
+                <span className="max-w-[60px] sm:max-w-[100px] truncate">{selectedFolder}</span>
               </button>
               
               {isFolderPickerOpen && (
@@ -304,10 +392,10 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
               )}
             </div>
 
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-2" />
+            <div className="w-px h-5 bg-gray-200 dark:bg-gray-800 mx-1" />
 
-            {/* Text Size Toggle */}
-            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            {/* Text Size Toggle - hidden on small mobile */}
+            <div className="hidden sm:flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               <button
                 onClick={() => setTextSize('small')}
                 className={cn(
@@ -340,23 +428,23 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
               </button>
             </div>
 
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-2" />
+            <div className="w-px h-5 bg-gray-200 dark:bg-gray-800 mx-1 hidden sm:block" />
 
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsPreview(!isPreview)}
-              className="gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              className="gap-1 sm:gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-2 sm:px-3"
             >
               {isPreview ? (
                 <>
                   <Edit2 className="w-4 h-4" />
-                  Edit
+                  <span className="hidden sm:inline">Edit</span>
                 </>
               ) : (
                 <>
                   <Eye className="w-4 h-4" />
-                  Preview
+                  <span className="hidden sm:inline">Preview</span>
                 </>
               )}
             </Button>
@@ -372,35 +460,12 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
                 <Trash2 className="w-4 h-4" />
               </Button>
             )}
-
-
-
-            <Button
-              onClick={handleSave}
-              className="gap-2"
-              disabled={isUploading}
-            >
-              <Save className="w-4 h-4" />
-              {isUploading ? 'Uploading...' : 'Save'}
-            </Button>
-            
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-2" />
-            
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              title="Close"
-            >
-              <X className="w-5 h-5" />
-            </Button>
           </div>
         </div>
 
         {/* Toolbar */}
         {!isPreview && editor && (
-          <div className="border-b border-gray-100 dark:border-gray-800 px-8 py-2 flex items-center gap-1 bg-gray-50/50 dark:bg-gray-900/50 shrink-0 overflow-x-auto">
+          <div className="border-b border-gray-100 dark:border-gray-800 px-3 sm:px-4 lg:px-8 py-2 flex items-center gap-1 bg-gray-50/50 dark:bg-gray-900/50 shrink-0 overflow-x-auto">
             <Button
               variant="ghost"
               size="sm"
@@ -485,7 +550,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
           {isPreview ? (
             <div 
               className={cn(
-                "flex-1 p-8 overflow-y-auto prose dark:prose-invert max-w-none",
+                "flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto prose dark:prose-invert max-w-none",
                 textSize === 'small' && 'prose-sm',
                 textSize === 'medium' && 'prose-base',
                 textSize === 'large' && 'prose-lg'
@@ -495,7 +560,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
             />
           ) : (
             <div className="flex-1 overflow-y-auto cursor-text" onClick={() => editor?.commands.focus()} data-lenis-prevent>
-              <EditorContent editor={editor} />
+              <EditorContent editor={editor} className="px-4 sm:px-6 lg:px-8" />
             </div>
           )}
         </div>

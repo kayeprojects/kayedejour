@@ -4,13 +4,14 @@ import { Sidebar } from "./components/Sidebar";
 import { NoteGrid } from "./components/NoteGrid";
 // import { Editor } from "./components/Editor"; // Lazy loaded below
 import type { Session } from "@supabase/supabase-js";
-import { Moon, Sun, RefreshCw, Search, Check } from "lucide-react";
+import { Moon, Sun, RefreshCw, Search, Check, Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import Lenis from "lenis";
 import { db } from "./lib/db";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v4 as uuidv4 } from "uuid";
 import { syncNotes, syncFolders } from "./lib/sync";
+import { cn } from "./lib/utils";
 
 const Editor = lazy(() => import("./components/Editor").then(module => ({ default: module.Editor })));
 
@@ -42,6 +43,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [pendingChangesCount, setPendingChangesCount] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   // Load dark mode from localStorage, default to true
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
@@ -407,6 +410,8 @@ function App() {
         user={session?.user || null}
         onLogin={handleLogin}
         onLogout={handleLogout}
+        isMobileOpen={isSidebarOpen}
+        onMobileClose={() => setIsSidebarOpen(false)}
       />
 
       {/* Main Content */}
@@ -415,72 +420,136 @@ function App() {
         <div className="absolute inset-0 z-0 opacity-30 dark:opacity-20 pointer-events-none bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center fixed" />
 
         {/* Header */}
-        <header className="h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-8 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 sticky top-0">
-          <motion.h2
-            key={activeFolder}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-xl font-serif font-medium tracking-tight text-gray-900 dark:text-white"
-          >
-            {activeFolder}
-          </motion.h2>
-          
-          {/* Search Bar */}
-          <div className="flex-1 max-w-md mx-8">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search notes..."
-                className="w-full pl-10 pr-4 py-2 text-sm bg-gray-100 dark:bg-gray-800 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Sync Status */}
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              {pendingChangesCount > 0 && (
-                <span className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded-full">
-                  {pendingChangesCount} pending
-                </span>
-              )}
-              {lastSyncTime && (
-                <span className="flex items-center gap-1">
-                  <Check className="w-3 h-3 text-green-500" />
-                  {lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
+        <header className="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-10 sticky top-0">
+          {/* Main header row */}
+          <div className="h-14 sm:h-16 flex items-center px-3 sm:px-4 lg:px-8 gap-2 sm:gap-3">
+            {/* Mobile hamburger menu */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 lg:hidden active:scale-95 transition-all"
+              aria-label="Open menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            
+            <motion.h2
+              key={activeFolder}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-lg sm:text-xl font-serif font-semibold tracking-tight text-gray-900 dark:text-white truncate flex-1 min-w-0"
+            >
+              {activeFolder}
+            </motion.h2>
+            
+            {/* Desktop Search Bar */}
+            <div className="flex-1 max-w-md mx-4 hidden lg:block">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search notes..."
+                  className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-800 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400"
+                />
+              </div>
             </div>
             
+            {/* Mobile search toggle */}
             <button
-              onClick={handleSync}
-              disabled={isSyncing}
-              className={`p-2 rounded-full text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${isSyncing ? 'animate-spin' : ''}`}
-              title="Sync Now (Ctrl+Shift+S)"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-500 dark:text-gray-400 transition-colors"
-            >
-              {isDarkMode ? (
-                <Sun className="w-5 h-5" />
-              ) : (
-                <Moon className="w-5 h-5" />
+              onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+              className={cn(
+                "p-2.5 rounded-xl transition-all active:scale-95 lg:hidden",
+                isMobileSearchOpen 
+                  ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900" 
+                  : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
               )}
+              aria-label="Search"
+            >
+              <Search className="w-5 h-5" />
             </button>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              {filteredNotes.length} entries
+
+            <div className="flex items-center gap-1 sm:gap-2">
+              {/* Sync Status - hidden on mobile */}
+              <div className="hidden lg:flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                {pendingChangesCount > 0 && (
+                  <span className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded-full">
+                    {pendingChangesCount} pending
+                  </span>
+                )}
+                {lastSyncTime && (
+                  <span className="flex items-center gap-1">
+                    <Check className="w-3 h-3 text-green-500" />
+                    {lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
+              
+              <button
+                onClick={handleSync}
+                disabled={isSyncing}
+                className={cn(
+                  "p-2.5 rounded-xl text-gray-600 dark:text-gray-300 transition-all hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95",
+                  isSyncing && 'animate-spin'
+                )}
+                title="Sync Now (Ctrl+Shift+S)"
+              >
+                <RefreshCw className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setIsDarkMode(!isDarkMode)}
+                className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl text-gray-600 dark:text-gray-300 transition-all active:scale-95"
+              >
+                {isDarkMode ? (
+                  <Sun className="w-5 h-5" />
+                ) : (
+                  <Moon className="w-5 h-5" />
+                )}
+              </button>
+              <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 hidden sm:block px-2">
+                {filteredNotes.length} entries
+              </div>
             </div>
           </div>
+          
+          {/* Mobile Search Bar - Expandable */}
+          <AnimatePresence>
+            {isMobileSearchOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden lg:hidden"
+              >
+                <div className="px-3 pb-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search notes..."
+                      autoFocus
+                      className="w-full pl-10 pr-4 py-3 text-base bg-gray-100 dark:bg-gray-800 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500 text-gray-900 dark:text-white placeholder:text-gray-400"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+                      >
+                        <X className="w-4 h-4 text-gray-400" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </header>
 
         {/* Grid */}
-        <div className="flex-1 p-8 z-10" id="scroll-container">
+        <div className="flex-1 p-3 sm:p-4 lg:p-8 z-10" id="scroll-container">
           {isLoading ? (
             <div className="flex items-center justify-center h-64 text-gray-400">
               Loading Journal...
