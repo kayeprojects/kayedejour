@@ -6,7 +6,7 @@ import { NoteGrid } from "./components/NoteGrid";
 import type { Session } from "@supabase/supabase-js";
 import { Moon, Sun, RefreshCw, Search, Check, Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import Lenis from "lenis";
+// import Lenis from "lenis"; // Disabled - caused scroll glitches with sticky header
 import { db } from "./lib/db";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v4 as uuidv4 } from "uuid";
