@@ -9,6 +9,7 @@ interface Note {
   title: string
   content: string
   date: string
+  folder?: string
   images?: { thumb: string; medium: string; large: string }[]
 }
 

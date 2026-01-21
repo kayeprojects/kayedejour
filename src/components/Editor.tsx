@@ -3,11 +3,12 @@ import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
-import { X, Save, Eye, Edit2, Trash2, Bold, Italic, List, ListOrdered, Quote, Heading2, ImageIcon, Type, Folder as FolderIcon } from 'lucide-react'
+import { X, Save, Eye, Edit2, Trash2, Bold, Italic, List, ListOrdered, Quote, Heading2, ImageIcon, Type, Folder as FolderIcon, Loader2 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 import { supabase } from '../lib/supabase'
 import SmartDateInput from './SmartDateInput'
+import { AnimatePresence, motion } from 'framer-motion'
 
 interface NoteImage {
   thumb: string
@@ -335,7 +336,7 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
           </div>
           
           {/* Secondary controls row */}
-          <div className="h-12 flex items-center gap-1 px-2 sm:px-4 lg:px-8 border-t border-gray-100 dark:border-gray-800 overflow-x-auto">
+          <div className="h-12 flex items-center gap-1 px-2 sm:px-4 lg:px-8 border-t border-gray-100 dark:border-gray-800 overflow-x-auto overflow-y-visible">
             {/* Date Picker */}
             <SmartDateInput
               value={date}
@@ -348,49 +349,72 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
               <button 
                 onClick={() => setIsFolderPickerOpen(!isFolderPickerOpen)}
                 className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                id="folder-picker-button"
               >
                 <FolderIcon className="w-4 h-4" />
                 <span className="max-w-[60px] sm:max-w-[100px] truncate">{selectedFolder}</span>
               </button>
-              
-              {isFolderPickerOpen && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setIsFolderPickerOpen(false)} 
-                  />
-                  <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+            </div>
+            
+            {/* Folder Picker Dropdown - Portal-style fixed position */}
+            {isFolderPickerOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-[9998]" 
+                  onClick={() => setIsFolderPickerOpen(false)} 
+                />
+                <div 
+                  className="fixed z-[9999] w-56 max-h-60 overflow-y-auto bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 py-1"
+                  style={{
+                    top: (() => {
+                      const btn = document.getElementById('folder-picker-button');
+                      if (btn) {
+                        const rect = btn.getBoundingClientRect();
+                        return rect.bottom + 4;
+                      }
+                      return 100;
+                    })(),
+                    left: (() => {
+                      const btn = document.getElementById('folder-picker-button');
+                      if (btn) {
+                        const rect = btn.getBoundingClientRect();
+                        // On mobile, align left; on desktop, try to keep it in view
+                        return Math.min(rect.left, window.innerWidth - 230);
+                      }
+                      return 100;
+                    })(),
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      setSelectedFolder('Unsorted')
+                      setIsFolderPickerOpen(false)
+                    }}
+                    className={cn(
+                      "w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700",
+                      selectedFolder === 'Unsorted' ? "text-gray-900 dark:text-white font-medium bg-gray-50 dark:bg-gray-700" : "text-gray-500 dark:text-gray-400"
+                    )}
+                  >
+                    Unsorted
+                  </button>
+                  {folders.map(folder => (
                     <button
+                      key={folder.id}
                       onClick={() => {
-                        setSelectedFolder('Unsorted')
+                        setSelectedFolder(folder.name)
                         setIsFolderPickerOpen(false)
                       }}
                       className={cn(
-                        "w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700",
-                        selectedFolder === 'Unsorted' ? "text-gray-900 dark:text-white font-medium" : "text-gray-500 dark:text-gray-400"
+                        "w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700",
+                        selectedFolder === folder.name ? "text-gray-900 dark:text-white font-medium bg-gray-50 dark:bg-gray-700" : "text-gray-500 dark:text-gray-400"
                       )}
                     >
-                      Unsorted
+                      {folder.name}
                     </button>
-                    {folders.map(folder => (
-                      <button
-                        key={folder.id}
-                        onClick={() => {
-                          setSelectedFolder(folder.name)
-                          setIsFolderPickerOpen(false)
-                        }}
-                        className={cn(
-                          "w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700",
-                          selectedFolder === folder.name ? "text-gray-900 dark:text-white font-medium" : "text-gray-500 dark:text-gray-400"
-                        )}
-                      >
-                        {folder.name}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             <div className="w-px h-5 bg-gray-200 dark:bg-gray-800 mx-1" />
 
@@ -529,7 +553,27 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden flex bg-white dark:bg-gray-900 relative">
+        <div className="flex-1 overflow-hidden flex flex-col bg-white dark:bg-gray-900 relative">
+          {/* Upload Overlay */}
+          <AnimatePresence>
+            {isUploading && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4"
+              >
+                <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 text-gray-600 dark:text-gray-300 animate-spin" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Uploading image...</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Please wait while we process your image</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {editor && (
             <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }} className="flex items-center gap-1 p-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
               <button
@@ -556,10 +600,9 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
                 textSize === 'large' && 'prose-lg'
               )}
               dangerouslySetInnerHTML={{ __html: editor?.getHTML() || '' }}
-              data-lenis-prevent
             />
           ) : (
-            <div className="flex-1 overflow-y-auto cursor-text" onClick={() => editor?.commands.focus()} data-lenis-prevent>
+            <div className="flex-1 overflow-y-auto cursor-text" onClick={() => editor?.commands.focus()}>
               <EditorContent editor={editor} className="px-4 sm:px-6 lg:px-8" />
             </div>
           )}

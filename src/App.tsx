@@ -100,6 +100,18 @@ function App() {
 
   async function checkAndMigrateData() {
     if (!session?.user) return;
+    
+    // Check if local data belongs to current user
+    const existingNotes = await db.notes.limit(1).toArray();
+    const existingNote = existingNotes[0];
+    
+    // If there's existing data from a DIFFERENT user, clear local DB first
+    if (existingNote && existingNote.user_id && existingNote.user_id !== session.user.id) {
+      console.log("Different user detected, clearing local database...");
+      await db.notes.clear();
+      await db.folders.clear();
+    }
+    
     const count = await db.notes.count();
     
     // If local DB is empty, try to migrate from Supabase (first login on this device)
@@ -150,9 +162,9 @@ function App() {
       }
       setIsLoading(false);
     } else {
-      // Local DB has data (maybe guest notes). 
+      // Local DB has data for current user. 
       // We should trigger a sync to pull user's cloud notes and merge them.
-      console.log("Local data exists, syncing with cloud...");
+      console.log("Local data exists for current user, syncing with cloud...");
       handleSync();
       setIsLoading(false);
     }
@@ -417,10 +429,10 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col relative bg-gray-50 dark:bg-black/50">
         {/* Background Image Overlay */}
-        <div className="absolute inset-0 z-0 opacity-30 dark:opacity-20 pointer-events-none bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center fixed" />
+        <div className="absolute inset-0 z-0 opacity-30 dark:opacity-20 pointer-events-none bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center" />
 
         {/* Header */}
-        <header className="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-10 sticky top-0">
+        <header className="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 sticky top-0">
           {/* Main header row */}
           <div className="h-14 sm:h-16 flex items-center px-3 sm:px-4 lg:px-8 gap-2 sm:gap-3">
             {/* Mobile hamburger menu */}

@@ -1,3 +1,5 @@
+import { Folder } from 'lucide-react'
+
 interface NoteImage {
   thumb: string
   medium: string
@@ -9,6 +11,7 @@ interface Note {
   title: string
   content: string
   date: string
+  folder?: string
   images?: NoteImage[]
 }
 
@@ -48,6 +51,7 @@ function getPreviewText(htmlContent: string): string {
 export function NoteCard({ note, onClick }: NoteCardProps) {
   const coverImage = note.images && note.images.length > 0 ? note.images[0].thumb : null
   const previewText = getPreviewText(note.content)
+  const folderName = note.folder && note.folder !== 'Unsorted' ? note.folder : null
 
   return (
     <div 
@@ -74,6 +78,12 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
               year: "numeric",
             })}
           </span>
+          {folderName && (
+            <span className="flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">
+              <Folder className="w-3 h-3" />
+              <span className="max-w-[60px] truncate">{folderName}</span>
+            </span>
+          )}
         </div>
         <h3 className="text-base sm:text-lg font-serif font-medium text-gray-900 dark:text-gray-100 mb-2 sm:mb-3 line-clamp-2 group-hover:text-black dark:group-hover:text-white transition-colors">
           {note.title || 'Untitled'}
@@ -85,4 +95,5 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
     </div>
   )
 }
+
 
