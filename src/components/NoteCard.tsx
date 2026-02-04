@@ -1,19 +1,5 @@
-import { Folder } from 'lucide-react'
-
-interface NoteImage {
-  thumb: string
-  medium: string
-  large: string
-}
-
-interface Note {
-  id: string
-  title: string
-  content: string
-  date: string
-  folder?: string
-  images?: NoteImage[]
-}
+import { Folder as FolderIcon } from 'lucide-react'
+import type { Note } from '../lib/types'
 
 interface NoteCardProps {
   note: Note
@@ -53,24 +39,32 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
   const previewText = getPreviewText(note.content)
   const folderName = note.folder && note.folder !== 'Unsorted' ? note.folder : null
 
+  // Use fixed height to prevent layout shifts with VirtuosoGrid
+  // Cards with images are taller than cards without
+  const cardHeight = coverImage ? 'h-[320px] sm:h-[360px]' : 'h-[180px] sm:h-[200px]'
+
   return (
     <div 
       onClick={onClick}
-      className="bg-white dark:bg-gray-900 rounded-xl sm:rounded-lg flex flex-col border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-lg transition-all duration-200 cursor-pointer group overflow-hidden h-auto min-h-[180px] sm:min-h-[200px] active:scale-[0.98] active:shadow-sm"
+      className={`bg-white dark:bg-gray-900 rounded-xl sm:rounded-lg flex flex-col border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-lg transition-all duration-200 cursor-pointer group overflow-hidden ${cardHeight} active:scale-[0.98] active:shadow-sm`}
     >
       {coverImage && (
-        <div className="h-32 sm:h-40 w-full overflow-hidden bg-gray-100 dark:bg-gray-800">
+        <div className="h-32 sm:h-40 w-full overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0">
           <img 
             src={coverImage} 
             alt="Note cover" 
             loading="lazy"
             decoding="async"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={(e) => {
+              // Hide broken images
+              (e.target as HTMLImageElement).style.display = 'none'
+            }}
           />
         </div>
       )}
-      <div className="p-4 sm:p-5 lg:p-6 flex flex-col flex-1">
-        <div className="flex items-start justify-between mb-2 sm:mb-3">
+      <div className="p-4 sm:p-5 lg:p-6 flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-start justify-between mb-2 sm:mb-3 shrink-0">
           <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
             {new Date(note.date).toLocaleDateString("en-US", {
               month: "short",
@@ -80,15 +74,15 @@ export function NoteCard({ note, onClick }: NoteCardProps) {
           </span>
           {folderName && (
             <span className="flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">
-              <Folder className="w-3 h-3" />
+              <FolderIcon className="w-3 h-3" />
               <span className="max-w-[60px] truncate">{folderName}</span>
             </span>
           )}
         </div>
-        <h3 className="text-base sm:text-lg font-serif font-medium text-gray-900 dark:text-gray-100 mb-2 sm:mb-3 line-clamp-2 group-hover:text-black dark:group-hover:text-white transition-colors">
+        <h3 className="text-base sm:text-lg font-serif font-medium text-gray-900 dark:text-gray-100 mb-2 sm:mb-3 line-clamp-2 group-hover:text-black dark:group-hover:text-white transition-colors shrink-0">
           {note.title || 'Untitled'}
         </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 sm:line-clamp-4 leading-relaxed whitespace-pre-line">
+        <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 sm:line-clamp-4 leading-relaxed whitespace-pre-line flex-1 overflow-hidden">
           {previewText}
         </p>
       </div>

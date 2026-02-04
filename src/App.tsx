@@ -12,25 +12,9 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { v4 as uuidv4 } from "uuid";
 import { syncNotes, syncFolders } from "./lib/sync";
 import { cn } from "./lib/utils";
+import type { Note } from "./lib/types";
 
 const Editor = lazy(() => import("./components/Editor").then(module => ({ default: module.Editor })));
-
-interface NoteImage {
-  thumb: string
-  medium: string
-  large: string
-}
-
-interface Note {
-  id: string;
-  title: string;
-  content: string;
-  date: string;
-  folder?: string;
-  user_id?: string;
-  images?: NoteImage[];
-}
-
 
 
 function App() {

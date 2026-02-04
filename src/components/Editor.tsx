@@ -9,26 +9,7 @@ import { Button } from './ui/button'
 import { supabase } from '../lib/supabase'
 import SmartDateInput from './SmartDateInput'
 import { AnimatePresence, motion } from 'framer-motion'
-
-interface NoteImage {
-  thumb: string
-  medium: string
-  large: string
-}
-
-interface Note {
-  id: string
-  title: string
-  content: string
-  date: string
-  folder?: string
-  images?: NoteImage[]
-}
-
-interface Folder {
-  id: string
-  name: string
-}
+import type { Note, NoteImage, Folder } from '../lib/types'
 
 interface EditorProps {
   note: Note | null
@@ -248,12 +229,26 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
   }
 
   const addImage = async () => {
+    // Check if user is authenticated first
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      alert('Please sign in to upload images')
+      return
+    }
+
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
     input.onchange = async () => {
       if (input.files?.length) {
         const originalFile = input.files[0]
+        
+        // Validate file size (max 10MB)
+        if (originalFile.size > 10 * 1024 * 1024) {
+          alert('Image is too large. Maximum size is 10MB.')
+          return
+        }
+
         setIsUploading(true)
         try {
           // Generate 3 versions
@@ -276,9 +271,19 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
           // Store in a temporary state for this session
           setAttachedImages(prev => [...prev, { thumb: thumbUrl, medium: mediumUrl, large: largeUrl }])
 
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error uploading image:', error)
-          alert('Error uploading image')
+          
+          // Provide specific error messages
+          if (error?.message?.includes('row-level security')) {
+            alert('Upload permission denied. Please check your Supabase storage policies.')
+          } else if (error?.message?.includes('Bucket not found')) {
+            alert('Storage bucket "uploads" not found. Please create it in Supabase.')
+          } else if (error?.statusCode === 413 || error?.message?.includes('too large')) {
+            alert('Image is too large to upload.')
+          } else {
+            alert(`Error uploading image: ${error?.message || 'Unknown error'}`)
+          }
         } finally {
           setIsUploading(false)
         }

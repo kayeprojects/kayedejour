@@ -3,15 +3,7 @@ import { NoteCard } from './NoteCard'
 import { motion } from 'framer-motion'
 import { VirtuosoGrid } from 'react-virtuoso'
 import { forwardRef } from 'react'
-
-interface Note {
-  id: string
-  title: string
-  content: string
-  date: string
-  folder?: string
-  images?: { thumb: string; medium: string; large: string }[]
-}
+import type { Note } from '../lib/types'
 
 interface NoteGridProps {
   notes: Note[]
