@@ -163,50 +163,75 @@ export function Editor({ note, isOpen, onClose, onSave, onDelete, folders, activ
   const resizeImage = (file: File, targetWidth: number, quality: number = 0.8): Promise<File> => {
     return new Promise((resolve, reject) => {
       const img = document.createElement('img')
-      img.src = URL.createObjectURL(file)
+      const objectUrl = URL.createObjectURL(file)
+      img.src = objectUrl
+      
       img.onload = () => {
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
+        // Always clean up the object URL to prevent memory leaks
+        URL.revokeObjectURL(objectUrl)
         
-        if (!ctx) {
-          reject(new Error('Could not get canvas context'))
-          return
-        }
-
-        let width = img.width
-        let height = img.height
-        
-        // Calculate new dimensions maintaining aspect ratio
-        if (width > targetWidth) {
-          const scale = targetWidth / width
-          width = targetWidth
-          height = height * scale
-        }
-
-        canvas.width = width
-        canvas.height = height
-
-        ctx.drawImage(img, 0, 0, width, height)
-
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error('Could not resize image'))
+        try {
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'))
             return
           }
-          // Construct new filename with size suffix
-          const nameParts = file.name.split('.')
-          const ext = nameParts.pop()
-          const name = nameParts.join('.')
-          const newName = `${name}_${targetWidth}w.${ext}`
 
-          const resizedFile = new File([blob], newName, {
-            type: file.type,
-            lastModified: Date.now(),
-          })
-          resolve(resizedFile)
-        }, file.type, quality)
+          let width = img.width
+          let height = img.height
+          
+          // Calculate new dimensions maintaining aspect ratio
+          if (width > targetWidth) {
+            const scale = targetWidth / width
+            width = targetWidth
+            height = height * scale
+          }
+
+          canvas.width = width
+          canvas.height = height
+
+          ctx.drawImage(img, 0, 0, width, height)
+
+          // Use JPEG as fallback for unsupported types (HEIC, etc.)
+          // Most browsers support image/jpeg reliably
+          const outputType = file.type.startsWith('image/') && 
+            ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+            ? file.type 
+            : 'image/jpeg'
+
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              reject(new Error('Could not resize image - blob creation failed'))
+              return
+            }
+            
+            try {
+              // Construct new filename with size suffix
+              const nameParts = file.name.split('.')
+              const ext = outputType === 'image/jpeg' ? 'jpg' : nameParts.pop() || 'jpg'
+              const name = nameParts.join('.') || 'image'
+              const newName = `${name}_${targetWidth}w.${ext}`
+
+              const resizedFile = new File([blob], newName, {
+                type: outputType,
+                lastModified: Date.now(),
+              })
+              resolve(resizedFile)
+            } catch (err) {
+              reject(new Error(`Error creating resized file: ${err}`))
+            }
+          }, outputType, quality)
+        } catch (err) {
+          reject(new Error(`Error during image resize: ${err}`))
+        }
       }
-      img.onerror = (error) => reject(error)
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        reject(new Error('Could not load image file'))
+      }
     })
   }
 
