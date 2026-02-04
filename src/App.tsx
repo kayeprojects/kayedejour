@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from "uuid";
 import { syncNotes, syncFolders } from "./lib/sync";
 import { cn } from "./lib/utils";
 import type { Note } from "./lib/types";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const Editor = lazy(() => import("./components/Editor").then(module => ({ default: module.Editor })));
 
@@ -563,17 +564,19 @@ function App() {
 
       <AnimatePresence>
         {isEditorOpen && (
-          <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-sm">Loading Editor...</div>}>
-            <Editor
-              isOpen={isEditorOpen}
-              note={editingNote}
-              onClose={() => setIsEditorOpen(false)}
-              onSave={handleSaveNote}
-              onDelete={handleDeleteNote}
-              folders={folders}
-              activeFolder={activeFolder}
-            />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 backdrop-blur-sm">Loading Editor...</div>}>
+              <Editor
+                isOpen={isEditorOpen}
+                note={editingNote}
+                onClose={() => setIsEditorOpen(false)}
+                onSave={handleSaveNote}
+                onDelete={handleDeleteNote}
+                folders={folders}
+                activeFolder={activeFolder}
+              />
+            </Suspense>
+          </ErrorBoundary>
         )}
       </AnimatePresence>
     </div>
